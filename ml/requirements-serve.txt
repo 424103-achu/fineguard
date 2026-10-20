@@ -1,0 +1,12 @@
+numpy
+scikit-learn
+scipy
+joblib
+transformers>=5
+spacy
+pymupdf
+trafilatura
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic

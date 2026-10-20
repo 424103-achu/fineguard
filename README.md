@@ -13,9 +13,12 @@ An NLP + ML system that reads a Terms of Service (ToS) document, flags sentences
 | Part | Status |
 |---|---|
 | Docs and plan | Done |
-| ML code (`ml/src/`) | Not started |
-| Training notebooks (`ml/notebooks/`) | Not started |
-| Web app (FastAPI, Express, React, Docker) | Not started |
+| ML code (`ml/src/`): data, evaluation, all 5 model families, pipeline, predictor, scoring | Done, tested |
+| Training notebooks (`ml/notebooks/01`–`05`) | Done, ready to run on Colab |
+| Web app (FastAPI, Express, React, Docker Compose) | Done, tested |
+| Trained Legal-BERT model, results table, ToS;DR validation | **Your runs**: train on Colab, collect ToS documents |
+
+No results are committed. Every number in the report must come from your own logged MLflow runs (`python -m src.results_table` builds the table from them).
 
 ---
 
@@ -25,7 +28,7 @@ All training runs on Colab's free GPU. Each notebook clones this repo, installs 
 
 ### Notebooks
 
-Run them in this order. The notebooks are added to `ml/notebooks/` as each phase is built.
+Run them in this order.
 
 | # | Notebook | What it does | GPU? | Rough time |
 |---|---|---|---|---|
@@ -88,10 +91,12 @@ My Drive/fineguard/
 │   ├── tfidf_logreg.joblib, tfidf_svm.joblib
 │   ├── mlp_*.pt, bilstm_*.pt
 │   └── legal-bert-unfair/        # weights + tokenizer + thresholds.json (used by the web app)
-└── mlruns/                       # MLflow logs: every metric in the report comes from here
+├── mlruns/                       # MLflow store (mlflow.db + artifacts/): every metric comes from here
+├── figures/                      # EDA and scoring plots for the report
+└── results.md                    # results table generated from MLflow
 ```
 
-To browse the MLflow runs, download `mlruns/` and run `mlflow ui` locally, or in a Colab cell run `!mlflow ui --backend-store-uri mlruns` behind a tunnel.
+To browse the MLflow runs, download `mlruns/` into `ml/` and run `mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db` from `ml/`.
 
 ### Rules for training runs
 
@@ -112,22 +117,81 @@ To browse the MLflow runs, download `mlruns/` and run `mlflow ui` locally, or in
 
 ---
 
-## Running the app locally (once built)
+## Running the app
+
+### Which model the app uses
+
+The ML service loads the first model it finds, in this order:
+
+1. `ml/models/legal-bert-unfair/`: copy it from `My Drive/fineguard/models/` after running notebook 04
+2. `ml/models/tfidf_svm.joblib`, then `ml/models/tfidf_logreg.joblib`: made in about a minute on any laptop with `cd ml && python -m src.train_classical`
+
+So you can demo the full app with the TF-IDF baseline before Legal-BERT is trained. If `score_weights.json` (made by notebook 05) sits next to the model, the service uses the fitted v2 weights; otherwise equal v1 weights. The Result page shows which model and weights produced each analysis.
+
+### With Docker
 
 ```bash
-docker compose up
+docker compose up --build
 ```
 
 - Web app: http://localhost:5173
 - ML service API docs: http://localhost:8000/docs
+- Express API: http://localhost:5000/api/health
 
-Copy `My Drive/fineguard/models/legal-bert-unfair/` into `ml/models/` first; the ML service loads it at startup.
+### Without Docker (development)
+
+Needs Python 3.11+, Node 20+ and PostgreSQL 16.
+
+```bash
+# 1. Database
+createdb fpg            # the server creates the table on startup
+
+# 2. ML service
+cd ml
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python -m src.train_classical          # only if you have no Legal-BERT model yet
+uvicorn service.main:app --reload --port 8000
+
+# 3. API server (new terminal)
+cd server && npm install
+DATABASE_URL=postgres://localhost:5432/fpg npm run dev
+
+# 4. Client (new terminal); /api is proxied to localhost:5000
+cd client && npm install && npm run dev
+```
+
+### Tests
+
+```bash
+cd ml && pytest          # pipeline, scoring, evaluation, models, API (no downloads needed)
+cd server && npm test    # Express routes with a fake database and ML service
+```
+
+## Training from the command line
+
+The notebooks call these scripts; you can also run them directly from `ml/`:
+
+| Script | What it does |
+|---|---|
+| `python -m src.train_classical` | TF-IDF + LogReg / SVM (`--ngram 1 1`, `--no-balanced`, `--c-logreg`, `--c-svm`) |
+| `python -m src.train_neural --model mlp --emb w2v` | Word2Vec/GloVe + MLP (`--emb glove`, `--seeds 42 43 44`) |
+| `python -m src.train_neural --model bilstm --emb w2v` | BiLSTM (`--freeze-emb`, `--pooling last`) |
+| `python -m src.train_transformer --model-name nlpaueb/legal-bert-base-uncased --export-dir models/legal-bert-unfair` | BERT / Legal-BERT, 3 seeds, exports the best-validation seed |
+| `python -m src.validate_score --model models/legal-bert-unfair --write-weights` | Risk score vs ToS;DR grades (Spearman ρ, bootstrap 95% CI, LOO) |
+| `python -m src.results_table --out results.md` | Results table built from MLflow runs |
+
+Every script tunes thresholds on validation only, evaluates on test with `src/evaluate.py`, and logs to MLflow (`--no-mlflow` to skip).
 
 ## Layout
 
 ```
-client/   React + Vite + Tailwind
-server/   Express + PostgreSQL
-ml/       data, evaluation, models, training, FastAPI service, notebooks
-docs/     implementation guide
+client/          React + Vite + Tailwind (Analyze, Result, History pages)
+server/          Express + PostgreSQL (analyses table, full result stored as JSONB)
+ml/src/          data, evaluate, models, training scripts, pipeline, predictor, scoring
+ml/service/      FastAPI: /health, /analyze/text, /analyze/pdf, /analyze/url
+ml/notebooks/    01 EDA → 05 scoring (run on Colab)
+ml/data/         collected ToS documents and ToS;DR grades
+ml/tests/        pytest suite
+docs/            implementation guide
 ```

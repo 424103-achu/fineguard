@@ -46,5 +46,6 @@ Full design, code skeletons, timeline and viva questions: `docs/fine-print-guard
 ## Commands
 
 - ML service: `cd ml && uvicorn service.main:app --reload --port 8000` (API docs at `/docs`)
-- ML tests: `cd ml && pytest`
+- ML tests: `cd ml && pytest`; server tests: `cd server && npm test`
+- Results table from MLflow: `cd ml && python -m src.results_table` (store: `ml/mlruns/mlflow.db`)
 - Everything: `docker compose up`

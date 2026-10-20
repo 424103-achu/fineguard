@@ -1,0 +1,8 @@
+models
+mlruns
+notebooks
+data
+tests
+.pytest_cache
+__pycache__
+**/__pycache__

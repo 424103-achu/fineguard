@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: fpg
+      POSTGRES_PASSWORD: fpg
+      POSTGRES_DB: fpg
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fpg"]
+      interval: 5s
+      retries: 10
+
+  ml:
+    build: ./ml
+    environment:
+      # First existing path wins: Legal-BERT, then the TF-IDF baselines
+      MODEL_PATHS: models/legal-bert-unfair,models/tfidf_svm.joblib,models/tfidf_logreg.joblib
+    volumes:
+      - ./ml/models:/app/models:ro
+    ports:
+      - "8000:8000"
+
+  server:
+    build: ./server
+    environment:
+      DATABASE_URL: postgres://fpg:fpg@db:5432/fpg
+      ML_URL: http://ml:8000
+      CLIENT_ORIGIN: http://localhost:5173
+    depends_on:
+      db:
+        condition: service_healthy
+      ml:
+        condition: service_started
+    ports:
+      - "5000:5000"
+
+  client:
+    build: ./client
+    ports:
+      - "5173:80"
+    depends_on:
+      - server
+
+volumes:
+  pgdata:
