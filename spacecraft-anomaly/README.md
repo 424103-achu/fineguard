@@ -4,6 +4,8 @@ An LSTM learns how spacecraft sensor readings normally behave and flags readings
 
 This is a reimplementation of Hundman et al., *[Detecting Spacecraft Anomalies Using LSTMs and Nonparametric Dynamic Thresholding](https://arxiv.org/abs/1802.04431)*, KDD 2018 (the "Telemanom" method).
 
+> **Full explanation of the method, code, experiments and viva Q&A: [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md).**
+
 > This folder is a standalone project. It shares nothing with the Fine-Print Guard code in the rest of the repository.
 
 ## How it works
