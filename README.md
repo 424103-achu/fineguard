@@ -6,6 +6,7 @@ An NLP + ML system that reads a Terms of Service (ToS) document, flags sentences
 
 - Full design and code plan: [`docs/fine-print-guard-implementation.md`](docs/fine-print-guard-implementation.md)
 - Project rules for contributors and Claude: [`CLAUDE.md`](CLAUDE.md)
+- Separate side project in this repo: [`spacecraft-anomaly/`](spacecraft-anomaly/README.md), an LSTM anomaly detector on NASA SMAP / Curiosity telemetry
 - Dataset: [UNFAIR-ToS (LexGLUE)](https://huggingface.co/datasets/coastalcph/lex_glue), 5,532 train / 2,275 validation / 1,607 test sentences
 
 ## Status
