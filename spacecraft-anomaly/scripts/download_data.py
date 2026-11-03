@@ -2,9 +2,10 @@
 
 Sources, tried in order:
   1. The original Telemanom S3 bucket (often returns 403 Access Denied nowadays).
-  2. The Kaggle mirror  patrickfleith/nasa-anomaly-detection-dataset-smap-msl
-     (needs the `kaggle` CLI and an API token in ~/.kaggle/kaggle.json).
-  3. A zip you downloaded by hand:  python scripts/download_data.py --zip path/to/archive.zip
+  2. The public Kaggle mirror  patrickfleith/nasa-anomaly-detection-dataset-smap-msl
+     (direct download, no account needed, ~86 MB).
+  3. The same mirror through the `kaggle` CLI (needs ~/.kaggle/kaggle.json).
+  4. A zip you downloaded by hand:  python scripts/download_data.py --zip path/to/archive.zip
 
 The labels file comes from the Telemanom GitHub repo.
 
@@ -29,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 S3_URL = "https://s3-us-west-2.amazonaws.com/telemanom/data.zip"
 LABELS_URL = "https://raw.githubusercontent.com/khundman/telemanom/master/labeled_anomalies.csv"
 KAGGLE_SLUG = "patrickfleith/nasa-anomaly-detection-dataset-smap-msl"
+KAGGLE_URL = f"https://www.kaggle.com/api/v1/datasets/download/{KAGGLE_SLUG}"
 
 
 def fetch(url: str, dest: Path) -> bool:
@@ -105,6 +107,9 @@ def main(argv=None) -> int:
             if a.source in ("auto", "s3"):
                 z = tmp / "data.zip"
                 ok = fetch(S3_URL, z) and install_from_zip(z, out)
+            if not ok and a.source in ("auto", "kaggle"):
+                z = tmp / "kaggle.zip"
+                ok = fetch(KAGGLE_URL, z) and install_from_zip(z, out)
             if not ok and a.source in ("auto", "kaggle"):
                 z = try_kaggle(tmp)
                 ok = z is not None and install_from_zip(z, out)

@@ -16,7 +16,7 @@ test/<chan>.npy ──► forecast next values ──► |actual − forecast| �
                      flagged anomaly sequences ◄── pruning ◄── dynamic threshold ε
 ```
 
-1. **Forecast.** For each of the 82 channels, a 2-layer LSTM (80 units) reads the last 250 timesteps (telemetry value plus one-hot spacecraft commands) and predicts the next 10 values. It is trained only on the train split, which is mostly nominal.
+1. **Forecast.** For each of the 81 labeled channels, a 2-layer LSTM (80 units) reads the last 250 timesteps (telemetry value plus one-hot spacecraft commands) and predicts the next 10 values. It is trained only on the train split, which is mostly nominal.
 2. **Error.** On the test split, the absolute prediction error is smoothed with an exponentially weighted moving average (EWMA).
 3. **Dynamic threshold.** For each window of errors, the method tries ε = μ + zσ for z = 2.5 … 12. It picks the ε whose removal lowers the mean and standard deviation of the errors the most, while penalising the number of flagged points and sequences. No labels are used.
 4. **Pruning.** Flagged sequences whose peak error is not at least 13% higher than the next-highest peak are dropped, which removes small false alarms.
@@ -83,15 +83,12 @@ pytest
 python scripts/download_data.py
 ```
 
-The script tries three sources in turn:
+The script tries these sources in turn:
 
 1. **The original NASA/JPL S3 bucket.** It currently returns *403 Access Denied*, but it is tried first in case it comes back.
-2. **The Kaggle mirror** [`patrickfleith/nasa-anomaly-detection-dataset-smap-msl`](https://www.kaggle.com/datasets/patrickfleith/nasa-anomaly-detection-dataset-smap-msl). This needs the Kaggle CLI:
-   ```bash
-   pip install kaggle
-   ```
-   Then create an API token at kaggle.com → Settings → *Create New Token* and save it as `~/.kaggle/kaggle.json`.
-3. **A manual download.** Download the zip from the Kaggle page in your browser, then run:
+2. **The public Kaggle mirror** [`patrickfleith/nasa-anomaly-detection-dataset-smap-msl`](https://www.kaggle.com/datasets/patrickfleith/nasa-anomaly-detection-dataset-smap-msl). This is a direct download of about 86 MB and needs no account.
+3. **The same mirror through the Kaggle CLI**, if the direct download fails. Install it with `pip install kaggle` and put your API token in `~/.kaggle/kaggle.json`.
+4. **A manual download.** Download the zip from the Kaggle page in your browser, then run:
    ```bash
    python scripts/download_data.py --zip ~/Downloads/archive.zip
    ```
@@ -99,9 +96,9 @@ The script tries three sources in turn:
 The labels (`labeled_anomalies.csv`) are always downloaded from the [Telemanom GitHub repo](https://github.com/khundman/telemanom). When it finishes you should have:
 
 ```
-data/labeled_anomalies.csv     # 82 channels: 55 SMAP + 27 MSL, 105 labeled anomalies
-data/train/*.npy               # per-channel training telemetry
-data/test/*.npy                # per-channel test telemetry with anomalies
+data/labeled_anomalies.csv     # 81 labeled channels: 54 SMAP + 27 MSL, 105 anomalies
+data/train/*.npy               # 82 files: per-channel training telemetry
+data/test/*.npy                # 82 files: per-channel test telemetry with anomalies
 ```
 
 To keep the data elsewhere, pass `--data-dir /path` to the commands below or set `SAD_DATA_DIR=/path`.
@@ -174,9 +171,7 @@ Set **Runtime → Change runtime type → GPU**, then run in a cell:
 ```python
 !git clone https://github.com/424103-achu/fineguard.git
 %cd fineguard/spacecraft-anomaly
-!pip install -q -e ".[dev]" kaggle
-# upload kaggle.json (Kaggle → Settings → Create New Token), then:
-!mkdir -p ~/.kaggle && cp /content/kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json
+!pip install -q -e ".[dev]"
 !python scripts/download_data.py
 !python -m sad.run --spacecraft SMAP --method lstm --seed 0
 !python -m sad.run --spacecraft MSL  --method lstm --seed 0
@@ -197,7 +192,8 @@ Fill this table only with numbers from your own runs (`python -m sad.summarize`)
 
 ## Notes and caveats
 
-- The labels file lists channel **P-2** twice. `load_labels` merges the two rows.
+- The labels file lists channel **P-2** twice. `load_labels` merges the two rows, which leaves 54 SMAP channels.
+- `T-10` has data files but no labels, so it is skipped.
 - Predictions start at test timestep `l_s` (the first 250 steps are history). Flagged sequences are shifted back to test-set indices before they are compared with labels.
 - Results differ from the paper because this uses PyTorch rather than Keras and a simplified error-windowing scheme. It also skips the paper's extra pass for unusually *low* errors.
 - Wu & Keogh (2021), *"Current Time Series Anomaly Detection Benchmarks are Flawed"*, argue that some anomalies in this dataset are trivial to detect, and that point-adjusted F1 inflates scores. This project reports **event-level** metrics only and includes simple baselines so the comparison is fair.
